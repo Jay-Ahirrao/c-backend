@@ -1,1 +1,1 @@
-export const DB_NAME = 'everytube'
+export const DB_NAME = 'QTube'
