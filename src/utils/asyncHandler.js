@@ -1,5 +1,9 @@
+// Asynchandler utility to handle async errors in Express.js
+
 const asyncHandler = (requestHandler) => (req,res,next ) => {
-    Promise.resolve(requestHandler(req,res,next)).reject((error) => {next(error)})
+    Promise
+    .resolve(requestHandler(req,res,next))
+    .reject((error) => {next(error)})
 }
 
 export {asyncHandler}
@@ -9,6 +13,7 @@ export {asyncHandler}
 // const asyncHandler =  () => {}
 // const asyncHandler =  (fn) => { () => {} }
 // const asyncHandler =  (fn) => () => { }           // just removed braces from previous code !!!
+
 /*
 const asyncHandler = (fn) => async (req,res,next) => {
     try {
