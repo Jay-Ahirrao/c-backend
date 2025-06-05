@@ -2,7 +2,7 @@
   "name": "chai-backend",
   "version": "1.0.0",
   "description": "chai aur backend yt course",
-  "main": "index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
     "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"

@@ -1,1 +1,1 @@
-export const DB_NAME = 'QTube'
+export const DB_NAME = 'new'
