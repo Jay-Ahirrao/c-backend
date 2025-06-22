@@ -1,6 +1,11 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import {uploadOnCloudinary} from "../utils/cloudinary.js";
+
+
+
 const registerUser = asyncHandler(async (req, res) => {
 
     // Steps to create a register controller
@@ -37,6 +42,33 @@ const registerUser = asyncHandler(async (req, res) => {
     if(! avatarLocalPath){
         throw new ApiError(400, "Avatar image is required !!!")
     }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+    if(!avatar) {
+        throw new ApiError(400, "Avatar image is required !!!")
+    }
+
+    const user = await User.create({
+        fullName,
+        username : username.toLowerCase(),
+        email,
+        password,
+        avatar: avatar.url,
+        coverImage: coverImage?.url || ""
+    })
+
+    const createdUser = await User.findById(user._id).select("-password -refreshToken");
+
+    if(!createdUser) {
+        throw new ApiError(500, "User not created successfully , something went wrong with create query!!!")
+    }
+
+    return res.status(201).json(
+        new ApiResponse(200, createdUser ,"User created successfully !!!") 
+    );
+
 
 })
 
