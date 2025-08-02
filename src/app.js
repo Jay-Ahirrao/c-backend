@@ -10,7 +10,7 @@ app.use(cors({
 
 app.use(express.json({limit:"10mb"}));
 app.use(urlencoded({extended:true,limit:"10mb"}));
-app.use(express.static('public'));
+app.use(express.static("/public/temp"));
 app.use(cookieParser());
 
 
