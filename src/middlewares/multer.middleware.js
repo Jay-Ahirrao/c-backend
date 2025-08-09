@@ -60,6 +60,7 @@ const storage = multer.diskStorage({
         cb(null, file.originalname); // Using original name as you specified
     }
 });
+});
 
 export const upload = multer({ storage });
 log('[Multer midware] Multer instance initialized with disk storage.');
