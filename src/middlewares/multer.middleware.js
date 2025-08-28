@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import {log} from 'console'; // Importing log for better console output
 
-
 const uploadDir = "public/temp"; // Relative path to the upload directory
 
 log(`[Multer midware] Initializing...`);
