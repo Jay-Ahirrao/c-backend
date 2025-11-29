@@ -1,7 +1,6 @@
 // multer.middleware.js
 import multer from 'multer';
 import fs from 'fs';
-import path from 'path';
 import {log} from 'console'; // Importing log for better console output
 
 const uploadDir = "public/temp"; // Relative path to the upload directory

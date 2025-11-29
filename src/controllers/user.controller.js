@@ -164,7 +164,6 @@ const loginUser = asyncHandler(async (req, res) => {
                 "User logged In Successfully"
             )
         )
-
 })
 
 const logoutUser = asyncHandler(async (req, res) => {
@@ -197,11 +196,13 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     if (!incomingRefreshToken) {
         throw new ApiError(401, "Unauthorized request")
     }
+    console.log(incomingRefreshToken);
+    
 
     try {
         const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
 
-        const user = await User.findById(decodedToken.userId)
+        const user = await User.findById(decodedToken._id)
 
         if (!user) {
             throw new ApiError(401, "Invalid Refresh Token | Unauthorized request.")
@@ -235,7 +236,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 })
 
-const changeUserPassword = asyncHandler(async (req, res) => {
+const changeCurrentPassword = asyncHandler(async (req, res) => {
     // get old password and new password from req body
     // validate both passwords
     // find the user from req.user._id
@@ -463,7 +464,7 @@ export {
     loginUser,
     logoutUser,
     refreshAccessToken,
-    changeUserPassword,
+    changeCurrentPassword,
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
