@@ -297,7 +297,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     // change avatar , with checks
     // user.save without password
 
-    avatarLocalPath = req?.file?.path;
+    const avatarLocalPath = req?.file?.path;
 
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar image is required !!!");
@@ -327,7 +327,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
     // get coverImage from -- req.file?.path , as file uploaded by user goes in ,  req.file instead of -- req.user._id
-    coverImageLocalPath = req?.file?.path;
+    const coverImageLocalPath = req?.file?.path;
 
     if (!coverImageLocalPath) {
         throw new ApiError(400, "coverImage is required !!!");
