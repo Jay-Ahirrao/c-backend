@@ -83,6 +83,6 @@ Contributions are very welcome! Please follow these steps:
 
 
 ## 📧 Contact
-Your Name - [@coder_jay_01](https://x.com) - email@example.com
+Your Name - [@coder_jay_01](https://x.com/coder_jay_01) - jayahirrao11@gmail.com
 
-Project Link: [https://github.com](https://github.com)
+Project Link: [https://github.com/Jay-Ahirrao/everytube](https://github.com/Jay-Ahirrao/everytube)
