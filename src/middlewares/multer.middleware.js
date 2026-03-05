@@ -1,4 +1,3 @@
-// multer.middleware.js
 import multer from 'multer';
 import fs from 'fs';
 import {log} from 'console'; // Importing log for better console output
@@ -24,11 +23,11 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
+    destination: function (_, file, cb) {  // req replaced with _ if not used :)
         log(`[Multer midware] In destination function for file: ${file.originalname}`);
         log(`[Multer midware] Multer will attempt to save to: ${uploadDir}`);
 
-        // IMPORTANT: Verify that 'uploadDir' is accessible/writable at this point.
+        // IMPORTANT : Verify that 'uploadDir' is accessible/writable at this point.
         // The 'cb' function is Multer's way of passing control.
         // The first argument is an error (if any), the second is the destination path.
         // If an error is passed here, Multer will stop processing the file.
