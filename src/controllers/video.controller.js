@@ -5,7 +5,7 @@ import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { uploadOnCloudinary, deleteFromCloudinary, getPublicIdFromUrl } from "../utils/cloudinary.js"
-
+import { fetchVideosAggregate } from "../utils/videoHelpers.js"
 
 const getAllVideos = asyncHandler(async (req, res) => {
     const { pageValue = 1, limitValue = 10, query, sortBy = "createdAt", sortType = "desc", userId } = req.query
@@ -33,89 +33,112 @@ const getAllVideos = asyncHandler(async (req, res) => {
     // When you pass this object into a .find() or $match stage, MongoDB treats all top-level keys as an implicit AND operation.
     // Logic: isPublished MUST be true AND (the title matches OR the description matches).
 
-    // ---------- MATCH FILTER ----------
-    const matchStage = {
-        isPublished: true
-    }
+    // {// now this functionallity is in videoHelper.js ----------
+    // const matchStage = {
+    //     isPublished: true
+    // }
 
-    // ----------------search----------=
+    // // ----------------search----------=
+    // if (query) {
+    //     matchStage.$or = [
+    //         { title: { $regex: query, $options: "i" } },
+    //         { description: { $regex: query, $options: "i" } }
+    //     ]
+    // }
+
+    // // --------filter by owner-----------
+    // if (userId && await User.findById(userId)) {
+    //     matchStage.owner = new mongoose.Types.ObjectId(String(userId))
+    // }
+
+    // // ---------sort stage =------- > The square brackets [] are a JavaScript ES6 feature called Computed Property Names.
+    // // It tells JavaScript: "Don't use the word 'sortBy' as the key. Instead, look at the value of the variable sortBy and use that.
+    // const sortStage = {
+    //     [sortBy]: sortType === "asc" ? 1 : -1
+    // }
+
+    // // ---------- AGGREGATION ----------
+
+    // const aggregateResult = await Video.aggregate([
+    //     {
+    //         $match: matchStage
+    //     },
+    //     { // join owner for derails
+    //         $lookup: {
+    //             from: "users",
+    //             localField: "owner",
+    //             foreignField: "_id",
+    //             as: "owner"
+    //         }
+    //     },
+    //     {
+    //         $unwind: "$owner"  // convert arr of objs to obj, single
+    //     },
+    //     {
+    //         $facet: {
+    //             // Branch 1: Metadata
+    //             metadata: [{ $count: "totalVideos" }],
+    //             // Branch 2: Actual Data
+    //             data: [
+    //                 { $sort: sortStage },
+    //                 { $skip: (page - 1) * limit },
+    //                 { $limit: limit },
+    //                 {
+    //                     $project: {
+    //                         title: 1,
+    //                         description: 1,
+    //                         thumbnail: 1,
+    //                         videoFile: 1,
+    //                         duration: 1,
+    //                         views: 1,
+    //                         createdAt: 1,
+    //                         "owner._id": 1,
+    //                         "owner.username": 1,
+    //                         "owner.avatar": 1
+    //                     }
+    //                 }
+    //             ]
+    //         }
+    //     }
+    // ])
+
+    // const videos = aggregateResult[0].data || []
+    // const totalVideos = aggregateResult[0].metadata[0]?.totalVideos || 0
+
+    // return res.status(200).json(
+    //     new ApiResponse(200, "Videos fetched successfully", {
+    //         videos,
+    //         pagination: {
+    //             page,
+    //             limit,
+    //             totalVideos,
+    //             totalPages: Math.ceil(totalVideos / limit)
+    //         }
+    //     })
+    // )}
+
+    // MATCH: MUST be published
+    const matchStage = { isPublished: true };
+
     if (query) {
-        matchStage.$or = [
+        matchStage.$or = [ //adding another key:value to oobject as  { isPublishedd:true , $or: {regex matching} }
             { title: { $regex: query, $options: "i" } },
             { description: { $regex: query, $options: "i" } }
-        ]
+        ];
     }
 
-    // --------filter by owner-----------
-    if (userId && await User.findById(userId)) {
-        matchStage.owner = new mongoose.Types.ObjectId(String(userId))
+    if (userId) {
+        matchStage.owner = new mongoose.Types.ObjectId(userId);
     }
 
-    // ---------sort stage =------- > The square brackets [] are a JavaScript ES6 feature called Computed Property Names.
-    // It tells JavaScript: "Don't use the word 'sortBy' as the key. Instead, look at the value of the variable sortBy and use that.
-    const sortStage = {
-        [sortBy]: sortType === "asc" ? 1 : -1
-    }
+    const sortStage = { [sortBy]: sortType === "asc" ? 1 : -1 };
 
-    // ---------- AGGREGATION ----------
+    const { videos, totalVideos } = await fetchVideosAggregate({ matchStage, sortStage, page, limit });
 
-    const aggregateResult = await Video.aggregate([
-        {
-            $match: matchStage
-        },
-        { // join owner for derails
-            $lookup: {
-                from: "users",
-                localField: "owner",
-                foreignField: "_id",
-                as: "owner"
-            }
-        },
-        {
-            $unwind: "$owner"  // convert arr of objs to obj, single
-        },
-        {
-            $facet: {
-                // Branch 1: Metadata
-                metadata: [{ $count: "totalVideos" }],
-                // Branch 2: Actual Data
-                data: [
-                    { $sort: sortStage },
-                    { $skip: (page - 1) * limit },
-                    { $limit: limit },
-                    {
-                        $project: {
-                            title: 1,
-                            description: 1,
-                            thumbnail: 1,
-                            videoFile: 1,
-                            duration: 1,
-                            views: 1,
-                            createdAt: 1,
-                            "owner._id": 1,
-                            "owner.username": 1,
-                            "owner.avatar": 1
-                        }
-                    }
-                ]
-            }
-        }
-    ])
-
-    const videos = aggregateResult[0].data || []
-    const totalVideos = aggregateResult[0].metadata[0]?.totalVideos || 0
-
-    return res.status(200).json(
-        new ApiResponse(200, "Videos fetched successfully", {
-            videos,
-            pagination: {
-                page,
-                limit,
-                totalVideos,
-                totalPages: Math.ceil(totalVideos / limit)
-            }
-        })
-    )
+    return res.status(200).json(new ApiResponse(200, "Public videos fetched", {
+        videos,
+        pagination: { page, limit, totalVideos, totalPages: Math.ceil(totalVideos / limit) }
+    }));
 
 })
 

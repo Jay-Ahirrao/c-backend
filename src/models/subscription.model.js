@@ -12,3 +12,5 @@ const subscriptionSchema = new Schema({
 }, {timestamps: true});
 
 export const Subscription = mongoose.model("Subscription", subscriptionSchema);
+
+//stores list of documents with user channel and his subs (he is following)
