@@ -5,6 +5,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
 import { Subscription } from '../models/subscription.model.js';
+import mongoose from "mongoose";
 
 const generateAccessAndRefereshTokens = async (userId) => {
     try {
@@ -388,10 +389,10 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
             {
                 $addFields:{
                     subscriberCount: {
-                        $size: "subscribers"
+                        $size: "$subscribers"
                     },
                     channelsSubscribedToCount: {
-                        $size: "subscribedTo"
+                        $size: "$subscribedTo"
                     },
                     isSubscribed: {
                         $cond: {
@@ -416,6 +417,12 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
             }
         ]
     )
+
+    if (!channel?.length) {
+        throw new ApiError(404, "Channel does not exists")
+    }
+
+    return res.status(200).json(new ApiResponse(200, channel[0], "User channel fetched successfully"))
 })
 
 const getWatchHistory = asyncHandler(async (req, res) => {
@@ -433,6 +440,14 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                 as: "watchHistory",
                 pipeline:[
                     {
+                        $match: {
+                            $or: [
+                                { isPublished: true },
+                                { owner: new mongoose.Types.ObjectId(req.user?._id) }
+                            ]
+                        }
+                    },
+                    {
                         $lookup:{
                             from: "users",
                             localField: "owner",
@@ -442,7 +457,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                                 {
                                     $project: {
                                         fullName: 1,
-                                        username: 1,
+                                        userName: 1,
                                         avatar: 1
                                     }
                                 }

@@ -37,9 +37,6 @@ const getChannelStats = asyncHandler(async (req, res) => {
                 as: "subscribers"
             }
         },
-        {
-            $out: stats
-        },
         // STAGE 4: Group everything to calculate totals
         {
             $group: {
@@ -101,10 +98,10 @@ const getChannelVideos = asyncHandler(async (req, res) => {
 
     const { videos, totalVideos } = await fetchVideosAggregate({ matchStage, sortStage, page, limit });
 
-    return res.status(200).json(new ApiResponse(200, "Channel videos fetched", {
+    return res.status(200).json(new ApiResponse(200, {
         videos,
         pagination: { page, limit, totalVideos, totalPages: Math.ceil(totalVideos / limit) }
-    }));
+    }, "Channel videos fetched"));
 })
 
 

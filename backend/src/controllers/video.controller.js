@@ -135,10 +135,10 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     const { videos, totalVideos } = await fetchVideosAggregate({ matchStage, sortStage, page, limit });
 
-    return res.status(200).json(new ApiResponse(200, "Public videos fetched", {
+    return res.status(200).json(new ApiResponse(200, {
         videos,
         pagination: { page, limit, totalVideos, totalPages: Math.ceil(totalVideos / limit) }
-    }));
+    }, "Public videos fetched"));
 
 })
 
@@ -211,25 +211,99 @@ const publishAVideo = asyncHandler(async (req, res) => {
     }
 
     return res.status(201).json(
-        new ApiResponse(201, "Video published successfully", {
+        new ApiResponse(201, {
             videoId: vid._id,
             title: vid.title,
-        })
+        }, "Video published successfully")
     )
 
 })
 
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
-    //TODO: get video by id
 
-    //1. check if the video with given id exists in the database
-    const video = await Video.findById(videoId)
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+
+    // 1. Fetch video with owner and like stats using aggregation
+    const videoResult = await Video.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(videoId)
+            }
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes"
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            fullName: 1,
+                            userName: 1,
+                            avatar: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $addFields: {
+                owner: { $first: "$owner" },
+                likesCount: { $size: "$likes" },
+                isLiked: {
+                    $cond: {
+                        if: { $in: [new mongoose.Types.ObjectId(req.user?._id), "$likes.likedBy"] },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                likes: 0 // remove raw likes array
+            }
+        }
+    ]);
+
+    const video = videoResult[0];
+
     if (!video) {
         throw new ApiError(404, "Video not found")
     }
 
-    return res.status(200).json(new ApiResponse(200, "Video fetched successfully", {video:video}, video))
+    // 1.5 check if video is published , if not only owner can see it
+    if (!video.isPublished && video.owner._id.toString() !== req.user?._id.toString()) {
+        throw new ApiError(403, "This video is private")
+    }
+
+    // 2. Add video to user's watch history if logged in
+    if (req.user) {
+        await User.findByIdAndUpdate(req.user._id, {
+            $pull: { watchHistory: videoId }
+        });
+        await User.findByIdAndUpdate(req.user._id, {
+            $push: { watchHistory: videoId }
+        });
+    }
+
+    // 3. Increment views (using findByIdAndUpdate for efficiency)
+    await Video.findByIdAndUpdate(videoId, { $inc: { views: 1 } });
+    video.views += 1; // Update local object for response
+
+    return res.status(200).json(new ApiResponse(200, { video }, "Video fetched successfully"))
 })
 
 const updateVideo = asyncHandler(async (req, res) => {
@@ -300,7 +374,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
 
     await Video.findByIdAndDelete(videoId)
 
-    return res.status(200).json(new ApiResponse(200, "Video deleted successfully"))
+    return res.status(200).json(new ApiResponse(200, {}, "Video deleted successfully"))
 
 })
 
@@ -319,9 +393,9 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
     // toggle publish status
     video.isPublished = !video.isPublished // toggle the publish status of the video
-    await video.save()
+    await video.save({ validateBeforeSave: false })
 
-    return res.status(200).json(new ApiResponse(200, `Video ${video.isPublished ? "published" : "unpublished"} successfully`))
+    return res.status(200).json(new ApiResponse(200, { isPublished: video.isPublished }, `Video ${video.isPublished ? "published" : "unpublished"} successfully`))
 })
 
 export {

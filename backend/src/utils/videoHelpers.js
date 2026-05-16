@@ -29,8 +29,10 @@ export const fetchVideosAggregate = async ({ matchStage, sortStage, page, limit 
                             duration: 1,
                             views: 1,
                             createdAt: 1,
+                            isPublished: 1,
                             "owner._id": 1,
-                            "owner.username": 1,
+                            "owner.userName": 1,
+                            "owner.fullName": 1,
                             "owner.avatar": 1
                         }
                     }
