@@ -54,17 +54,16 @@ export default function Comments({ videoId }) {
     try {
       setSubmitting(true)
       const { data } = await api.post(`/comments/${videoId}`, { content: newComment })
-      // Backend returns the new comment. We need to add user details to it for UI
       const commentWithUser = {
         ...data.data,
-        owner: {
+        owner: data.data.owner || {
           userName: user.userName,
           fullName: user.fullName,
           avatar: user.avatar,
           _id: user._id
         },
-        likesCount: 0,
-        isLiked: false
+        likesCount: data.data.likesCount ?? 0,
+        isLiked: data.data.isLiked ?? false
       }
       setComments([commentWithUser, ...comments])
       setNewComment("")
@@ -172,7 +171,7 @@ export default function Comments({ videoId }) {
                 </div>
                 <p className="text-sm text-foreground leading-relaxed">{comment.content}</p>
                 <div className="flex items-center gap-4 pt-1">
-                  <button 
+                  <button
                     onClick={() => handleToggleLike(comment._id)}
                     className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${comment.isLiked ? 'text-blue-500' : 'text-muted-foreground hover:text-primary'}`}
                   >
@@ -180,7 +179,7 @@ export default function Comments({ videoId }) {
                     {comment.likesCount}
                   </button>
                   {user?._id === comment.owner?._id && (
-                    <button 
+                    <button
                       onClick={() => handleDeleteComment(comment._id)}
                       className="text-xs font-bold text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                     >

@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { loginUser, logoutUser, registerUser, refreshAccessToken, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage, getUserChannelProfile, getWatchHistory } from "../controllers/user.controller.js";
+import { loginUser, logoutUser, registerUser, refreshAccessToken, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage, getUserChannelProfile, getWatchHistory, changeCurrentPassword, forgotPassword, verifyOtp, resetPassword } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { changeCurrentPassword } from "../controllers/user.controller.js";
 
 let router = Router();
 
@@ -17,6 +16,10 @@ router.route("/register").post(
 router.route("/login").post(
   loginUser
 )
+
+router.route("/forgot-password").post(forgotPassword)
+router.route("/verify-otp").post(verifyOtp)
+router.route("/reset-password").post(resetPassword)
 
 router.route("/logout").post(
   verifyJWT, 

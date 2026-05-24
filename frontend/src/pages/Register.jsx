@@ -9,6 +9,7 @@ export default function Register() {
     email: '',
     userName: '',
     password: '',
+    confirmPassword: '',
   })
   const [avatar, setAvatar] = useState(null)
   const [coverImage, setCoverImage] = useState(null)
@@ -30,6 +31,12 @@ export default function Register() {
     e.preventDefault()
     setError('')
     setIsLoading(true)
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match")
+      setIsLoading(false)
+      return
+    }
 
     if (!avatar) {
       setError("Avatar is required")
@@ -117,6 +124,17 @@ export default function Register() {
               required
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Confirm Password</label>
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              required
+            />
+          </div>
           
           <div className="pt-2">
             <label className="block text-sm font-medium text-foreground mb-1.5">Avatar *</label>
@@ -133,7 +151,7 @@ export default function Register() {
                 ref={avatarInputRef}
                 className="hidden" 
                 accept="image/*"
-                onChange={(e) => setAvatar(e.target.files[0])}
+                onChange={(e) => e.target.files?.[0] && setAvatar(e.target.files[0])}
               />
             </div>
           </div>
@@ -153,7 +171,7 @@ export default function Register() {
                 ref={coverInputRef}
                 className="hidden" 
                 accept="image/*"
-                onChange={(e) => setCoverImage(e.target.files[0])}
+                onChange={(e) => e.target.files?.[0] && setCoverImage(e.target.files[0])}
               />
             </div>
           </div>

@@ -3,7 +3,7 @@ import { Search, Bell, Video, Menu, LogIn, LogOut, Settings, HelpCircle, Moon, G
 import { Link } from "react-router-dom"
 import { useAuth } from "../../context/AuthContext"
 
-export default function Topbar() {
+export default function Topbar({ toggleSidebar }) {
   const { user, logout } = useAuth()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -14,17 +14,26 @@ export default function Topbar() {
         setIsProfileOpen(false)
       }
     }
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setIsProfileOpen(false)
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    document.addEventListener("keydown", handleEscape)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("keydown", handleEscape)
+    }
   }, [])
 
   return (
     <header className="h-16 flex items-center justify-between px-4 border-b border-border bg-card shrink-0 relative z-50">
-      <div className="flex items-center gap-4 md:hidden">
-        <button className="p-2 hover:bg-secondary rounded-full">
+      <div className="flex items-center gap-4">
+        <button onClick={toggleSidebar} className="p-2 hover:bg-secondary rounded-full">
           <Menu className="h-5 w-5 text-muted-foreground" />
         </button>
-        <Link to="/" className="flex items-center justify-center flex-1">
+        <Link to="/" className="flex items-center justify-center">
           <img src="/image.png" alt="EveryTube" className="h-7 w-auto object-contain" />
         </Link>
       </div>
@@ -60,6 +69,9 @@ export default function Topbar() {
             <div className="relative ml-2" ref={dropdownRef}>
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
+                aria-haspopup="true"
+                aria-expanded={isProfileOpen}
+                aria-label="Account profile menu"
                 className={`block h-8 w-8 rounded-full bg-secondary overflow-hidden cursor-pointer flex-shrink-0 transition-all focus:outline-none ${isProfileOpen ? 'ring-1 ring-white ring-offset-2 ring-offset-card' : 'hover:ring-1 hover:ring-white/50 hover:ring-offset-2 hover:ring-offset-card'
                   }`}
               >
@@ -68,7 +80,11 @@ export default function Topbar() {
 
               {/* YouTube Style Dropdown */}
               {isProfileOpen && (
-                <div className="absolute right-0 top-full mt-4 w-[300px] bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden py-2 text-white animate-in fade-in slide-in-from-top-2 duration-200">
+                <div 
+                  role="menu"
+                  aria-label="Account profile links"
+                  className="absolute right-0 top-full mt-4 w-[300px] bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden py-2 text-white animate-in fade-in slide-in-from-top-2 duration-200"
+                >
 
                   {/* User Info Header */}
                   <div className="flex items-start gap-4 px-4 py-3">
@@ -86,6 +102,7 @@ export default function Topbar() {
                   {/* Action Links */}
                   <Link
                     to="/profile"
+                    role="menuitem"
                     onClick={() => setIsProfileOpen(false)}
                     className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors"
                   >
@@ -97,6 +114,7 @@ export default function Topbar() {
                       setIsProfileOpen(false);
                       logout();
                     }}
+                    role="menuitem"
                     className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 hover:text-red-400 transition-colors text-left"
                   >
                     <LogOut className="h-5 w-5 text-neutral-400 shrink-0" />
@@ -106,21 +124,21 @@ export default function Topbar() {
                   <div className="w-full h-px bg-white/10 my-2"></div>
 
                   {/* Future Implementation Stubs */}
-                  <button className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
+                  <button role="menuitem" className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
                     <Moon className="h-5 w-5 text-neutral-400 shrink-0" />
                     <div className="flex flex-1 justify-between items-center">
                       <span className="text-[14px]">Appearance: Device theme</span>
                       <span className="text-xs text-neutral-500">&gt;</span>
                     </div>
                   </button>
-                  <button className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
+                  <button role="menuitem" className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
                     <Globe className="h-5 w-5 text-neutral-400 shrink-0" />
                     <div className="flex flex-1 justify-between items-center">
                       <span className="text-[14px]">Language: English</span>
                       <span className="text-xs text-neutral-500">&gt;</span>
                     </div>
                   </button>
-                  <button className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
+                  <button role="menuitem" className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
                     <Keyboard className="h-5 w-5 text-neutral-400 shrink-0" />
                     <span className="text-[14px]">Keyboard shortcuts</span>
                   </button>
@@ -128,7 +146,8 @@ export default function Topbar() {
                   <div className="w-full h-px bg-white/10 my-2"></div>
 
                   <Link
-                    to="/profile"
+                    to="/settings"
+                    role="menuitem"
                     onClick={() => setIsProfileOpen(false)}
                     className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors"
                   >
@@ -138,7 +157,7 @@ export default function Topbar() {
 
                   <div className="w-full h-px bg-white/10 my-2"></div>
 
-                  <button className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
+                  <button role="menuitem" className="w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/10 transition-colors text-left">
                     <HelpCircle className="h-5 w-5 text-neutral-400 shrink-0" />
                     <span className="text-[14px]">Help</span>
                   </button>

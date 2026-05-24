@@ -29,17 +29,18 @@ export function AuthProvider({ children }) {
   }
 
   const register = async (formData) => {
-    const { data } = await api.post('/users/register', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    const { data } = await api.post('/users/register', formData)
     return data
   }
 
   const logout = async () => {
-    await api.post('/users/logout')
-    setUser(null)
+    try {
+      await api.post('/users/logout')
+    } catch (error) {
+      console.error("Server logout failed:", error)
+    } finally {
+      setUser(null)
+    }
   }
 
   return (

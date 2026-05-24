@@ -93,7 +93,8 @@ const getLikedVideos = asyncHandler(async (req, res) => {
   const allLikedVideos = await Like.aggregate([
     {
       $match: {
-        likedBy: req.user._id
+        likedBy: req.user._id,
+        video: { $exists: true, $ne: null }
       }
     },
     {
@@ -117,9 +118,19 @@ const getLikedVideos = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              fullName: 1,
-              username: 1,
-              avatar: 1,
+              videoFile: 1,
+              thumbnail: 1,
+              title: 1,
+              description: 1,
+              duration: 1,
+              views: 1,
+              createdAt: 1,
+              owner: {
+                _id: "$owner._id",
+                fullName: "$owner.fullName",
+                userName: "$owner.userName",
+                avatar: "$owner.avatar",
+              },
             },
           },
         ],

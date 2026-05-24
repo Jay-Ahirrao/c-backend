@@ -13,6 +13,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid video ID");
     }
 
+    const userId = req.user?._id ? new mongoose.Types.ObjectId(req.user._id) : null;
+
     // Convert page/limit to numbers for calculation
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -46,13 +48,13 @@ const getVideoComments = asyncHandler(async (req, res) => {
         {
             $addFields: {
                 likesCount: { $size: "$likes" },
-                isLiked: {
+                isLiked: userId ? {
                     $cond: {
-                        if: { $in: [new mongoose.Types.ObjectId(req.user?._id), "$likes.likedBy"] },
+                        if: { $in: [userId, "$likes.likedBy"] },
                         then: true,
                         else: false
                     }
-                },
+                } : false,
                 owner: {
                     userName: "$ownerDetails.userName",
                     fullName: "$ownerDetails.fullName",
@@ -92,6 +94,11 @@ const addComment = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid Video ID");
     }
 
+    const video = await Video.findById(videoId);
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }
+
     const comment = await Comment.create({
         content,
         video: videoId,
@@ -110,6 +117,10 @@ const addComment = asyncHandler(async (req, res) => {
 const updateComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
     const { content } = req.body;
+
+    if (!isValidObjectId(commentId)) {
+        throw new ApiError(400, "Invalid Comment ID");
+    }
 
     if (!content) {
         throw new ApiError(400, "Content is required to update comment");

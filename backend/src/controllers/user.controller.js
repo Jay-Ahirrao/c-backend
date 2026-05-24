@@ -6,6 +6,8 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
 import { Subscription } from '../models/subscription.model.js';
 import mongoose from "mongoose";
+import { sendEmail } from '../utils/mail.helper.js';
+import crypto from "crypto";
 
 const generateAccessAndRefereshTokens = async (userId) => {
     try {
@@ -65,7 +67,7 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Avatar image is required !!!");
     }
 
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const avatar = await uploadOnCloudinary(avatarLocalPath, req);
 
     if (!avatar) {
         // If avatar upload fails, it's a server-side issue or Cloudinary problem
@@ -75,7 +77,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // Upload cover image if provided
     let coverImage = null;
     if (coverImageLocalPath) {
-        coverImage = await uploadOnCloudinary(coverImageLocalPath);
+        coverImage = await uploadOnCloudinary(coverImageLocalPath, req);
         if (!coverImage) {
             // Log a warning if cover image upload fails, but don't stop registration
             // as it's an optional field. Consider whether you need to delete the uploaded avatar here
@@ -149,7 +151,9 @@ const loginUser = asyncHandler(async (req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: true
+        secure: true,
+        signed: true,
+        sameSite: 'none'
     }
 
     return res
@@ -182,7 +186,9 @@ const logoutUser = asyncHandler(async (req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: true
+        secure: true,
+        signed: true,
+        sameSite: 'none'
     }
 
     return res
@@ -193,7 +199,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 })
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+    const incomingRefreshToken = req.signedCookies?.refreshToken || req.cookies?.refreshToken || req.body.refreshToken
     if (!incomingRefreshToken) {
         throw new ApiError(401, "Unauthorized request")
     }
@@ -215,7 +221,9 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
         const options = {
             httpOnly: true,
-            secure: true
+            secure: true,
+            signed: true,
+            sameSite: 'none'
         }
 
         const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id)
@@ -279,12 +287,19 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All fields are required")
     }
 
+    const updateQuery = {
+        $set: { fullName, email }
+    };
+
+    if (req.user?.email && req.user.email.toLowerCase() !== email.toLowerCase()) {
+        updateQuery.$unset = {
+            forgotPasswordOtp: 1,
+            forgotPasswordOtpExpiry: 1
+        };
+    }
+
     const user = await User.findByIdAndUpdate(req.user?._id,
-        {
-            $set: {
-                fullName, email  // we can aslo write as fullName:fullName, email: email
-            }
-        },
+        updateQuery,
         { new: true }
     ).select("-password")
 
@@ -304,7 +319,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Avatar image is required !!!");
     }
 
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const avatar = await uploadOnCloudinary(avatarLocalPath, req);
 
     if (!avatar.url) {
         // If avatar upload fails, it's a server-side issue or Cloudinary problem
@@ -334,7 +349,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "coverImage is required !!!");
     }
 
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath, req);
 
     if (!coverImage.url) {
         // If avatar upload fails, it's a server-side issue or Cloudinary problem
@@ -479,6 +494,110 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, user[0].watchHistory, "Watch history fetched successfully"))
 })
 
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        throw new ApiError(400, "Email is required");
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+        throw new ApiError(404, "User with this email does not exist");
+    }
+
+    // Generate cryptographically secure 6-digit OTP
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
+
+    user.forgotPasswordOtp = otp;
+    user.forgotPasswordOtpExpiry = otpExpiry;
+    await user.save({ validateBeforeSave: false });
+
+    // Send email
+    const subject = "Password Reset OTP - EveryTube";
+    const text = `Your OTP for password reset is ${otp}. It is valid for 15 minutes.`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <h2 style="color: #ea580c; text-align: center;">EveryTube Password Reset</h2>
+            <p>Hello,</p>
+            <p>You requested to reset your password. Use the OTP below to complete the verification process. This OTP is valid for 15 minutes:</p>
+            <div style="font-size: 24px; font-weight: bold; letter-spacing: 4px; text-align: center; margin: 20px 0; padding: 15px; background-color: #f3f4f6; border-radius: 5px; color: #111827;">
+                ${otp}
+            </div>
+            <p>If you did not initiate this request, please ignore this email.</p>
+            <p>Best regards,<br/>The EveryTube Team</p>
+        </div>
+    `;
+
+    try {
+        await sendEmail({ to: user.email, subject, text, html });
+    } catch (error) {
+        console.error("Failed to send verification email:", error.message);
+        user.forgotPasswordOtp = undefined;
+        user.forgotPasswordOtpExpiry = undefined;
+        await user.save({ validateBeforeSave: false });
+        throw new ApiError(500, "Failed to deliver OTP email. Please try again later.");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { email }, "OTP sent to your registered email address"));
+});
+
+const verifyOtp = asyncHandler(async (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+        throw new ApiError(400, "Email and OTP are required");
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+        throw new ApiError(404, "User with this email does not exist");
+    }
+
+    if (!user.forgotPasswordOtp || user.forgotPasswordOtp !== otp) {
+        throw new ApiError(400, "Invalid OTP");
+    }
+
+    if (new Date() > user.forgotPasswordOtpExpiry) {
+        throw new ApiError(400, "OTP has expired");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "OTP verified successfully"));
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+        throw new ApiError(400, "All fields (email, otp, newPassword) are required");
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+        throw new ApiError(404, "User with this email does not exist");
+    }
+
+    if (!user.forgotPasswordOtp || user.forgotPasswordOtp !== otp) {
+        throw new ApiError(400, "Invalid OTP");
+    }
+
+    if (new Date() > user.forgotPasswordOtpExpiry) {
+        throw new ApiError(400, "OTP has expired");
+    }
+
+    // Reset password and clear OTP fields
+    user.password = newPassword;
+    user.forgotPasswordOtp = undefined;
+    user.forgotPasswordOtpExpiry = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password has been reset successfully"));
+});
+
 export {
     registerUser,
     loginUser,
@@ -490,6 +609,9 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    forgotPassword,
+    verifyOtp,
+    resetPassword
 }
 

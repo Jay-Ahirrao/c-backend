@@ -73,7 +73,7 @@ const addVideoToPlaylist = asyncHandler(async (req, res) => {
         throw new ApiError(403, "You are not authorized to add video to this playlist")
     }
 
-    if (playlist.videos.includes(videoId)) {
+    if (playlist.videos.some(vid => vid.toString() === videoId.toString())) {
         throw new ApiError(400, "Video already exists in playlist")
     }
 

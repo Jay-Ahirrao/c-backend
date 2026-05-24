@@ -9,113 +9,9 @@ import { fetchVideosAggregate } from "../utils/videoHelpers.js"
 
 const getAllVideos = asyncHandler(async (req, res) => {
     const { pageValue = 1, limitValue = 10, query, sortBy = "createdAt", sortType = "desc", userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
-    /*
-        Model.aggregate([
-            {stage1},
-            {stage2},
-            {stage3}
-        ])
 
-        Video.aggregate([
-        { $match: { find all documnts which are public} },
-        { $lookup: { if searched a query by user, find all fields where query matches, from all published videos} },
-        { $unwind: "if no query and yes userId , then getAll videos for that userId, or channel videos" },
-        { $project: {send only neccessary data , dont overload frontend} },
-        { $sort: {sort as filter value given by frontend, by default - createdAt} },
-        { $skip: number },   how many users to skip, pagination - satrt point
-        { $limit: number } - pagination end point - limit
-        ])  we can also use a , different 
-    */
     const page = Number(pageValue) //url params converted to numbers
     const limit = Number(limitValue)
-
-    // When you pass this object into a .find() or $match stage, MongoDB treats all top-level keys as an implicit AND operation.
-    // Logic: isPublished MUST be true AND (the title matches OR the description matches).
-
-    // {// now this functionallity is in videoHelper.js ----------
-    // const matchStage = {
-    //     isPublished: true
-    // }
-
-    // // ----------------search----------=
-    // if (query) {
-    //     matchStage.$or = [
-    //         { title: { $regex: query, $options: "i" } },
-    //         { description: { $regex: query, $options: "i" } }
-    //     ]
-    // }
-
-    // // --------filter by owner-----------
-    // if (userId && await User.findById(userId)) {
-    //     matchStage.owner = new mongoose.Types.ObjectId(String(userId))
-    // }
-
-    // // ---------sort stage =------- > The square brackets [] are a JavaScript ES6 feature called Computed Property Names.
-    // // It tells JavaScript: "Don't use the word 'sortBy' as the key. Instead, look at the value of the variable sortBy and use that.
-    // const sortStage = {
-    //     [sortBy]: sortType === "asc" ? 1 : -1
-    // }
-
-    // // ---------- AGGREGATION ----------
-
-    // const aggregateResult = await Video.aggregate([
-    //     {
-    //         $match: matchStage
-    //     },
-    //     { // join owner for derails
-    //         $lookup: {
-    //             from: "users",
-    //             localField: "owner",
-    //             foreignField: "_id",
-    //             as: "owner"
-    //         }
-    //     },
-    //     {
-    //         $unwind: "$owner"  // convert arr of objs to obj, single
-    //     },
-    //     {
-    //         $facet: {
-    //             // Branch 1: Metadata
-    //             metadata: [{ $count: "totalVideos" }],
-    //             // Branch 2: Actual Data
-    //             data: [
-    //                 { $sort: sortStage },
-    //                 { $skip: (page - 1) * limit },
-    //                 { $limit: limit },
-    //                 {
-    //                     $project: {
-    //                         title: 1,
-    //                         description: 1,
-    //                         thumbnail: 1,
-    //                         videoFile: 1,
-    //                         duration: 1,
-    //                         views: 1,
-    //                         createdAt: 1,
-    //                         "owner._id": 1,
-    //                         "owner.username": 1,
-    //                         "owner.avatar": 1
-    //                     }
-    //                 }
-    //             ]
-    //         }
-    //     }
-    // ])
-
-    // const videos = aggregateResult[0].data || []
-    // const totalVideos = aggregateResult[0].metadata[0]?.totalVideos || 0
-
-    // return res.status(200).json(
-    //     new ApiResponse(200, "Videos fetched successfully", {
-    //         videos,
-    //         pagination: {
-    //             page,
-    //             limit,
-    //             totalVideos,
-    //             totalPages: Math.ceil(totalVideos / limit)
-    //         }
-    //     })
-    // )}
 
     // MATCH: MUST be published
     const matchStage = { isPublished: true };
@@ -131,7 +27,10 @@ const getAllVideos = asyncHandler(async (req, res) => {
         matchStage.owner = new mongoose.Types.ObjectId(userId);
     }
 
-    const sortStage = { [sortBy]: sortType === "asc" ? 1 : -1 };
+    const allowedSortFields = ["title", "views", "duration", "createdAt", "updatedAt"];
+    const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+
+    const sortStage = { [validSortBy]: sortType === "asc" ? 1 : -1 };
 
     const { videos, totalVideos } = await fetchVideosAggregate({ matchStage, sortStage, page, limit });
 
@@ -169,11 +68,11 @@ const publishAVideo = asyncHandler(async (req, res) => {
     //4. upload video and thumbnail to cloudinary
     // Multer's diskStorage provides a `path` (and `destination` + `filename`) for saved files
     console.log("Uploading video file to Cloudinary...", videoFile.path);
-    const videoPath = await uploadOnCloudinary(videoFile.path)
+    const videoPath = await uploadOnCloudinary(videoFile.path, req)
     console.log("Video upload result:", videoPath);
 
     console.log("Uploading thumbnail to Cloudinary...", thumbnail.path);
-    const thumbnailPath = await uploadOnCloudinary(thumbnail.path)
+    const thumbnailPath = await uploadOnCloudinary(thumbnail.path, req)
     console.log("Thumbnail upload result:", thumbnailPath);
 
     if (!videoPath || !thumbnailPath) {
@@ -226,7 +125,9 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid video ID");
     }
 
-    // 1. Fetch video with owner and like stats using aggregation
+    const userId = req.user?._id ? new mongoose.Types.ObjectId(req.user._id) : null;
+
+    // 1. Fetch video with owner, subscription and like stats using aggregation
     const videoResult = await Video.aggregate([
         {
             $match: {
@@ -239,6 +140,25 @@ const getVideoById = asyncHandler(async (req, res) => {
                 localField: "_id",
                 foreignField: "video",
                 as: "likes"
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                let: { ownerId: "$owner" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    { $eq: ["$channel", "$$ownerId"] },
+                                    { $eq: ["$subscriber", userId] }
+                                ]
+                            }
+                        }
+                    }
+                ],
+                as: "subscription"
             }
         },
         {
@@ -262,18 +182,26 @@ const getVideoById = asyncHandler(async (req, res) => {
             $addFields: {
                 owner: { $first: "$owner" },
                 likesCount: { $size: "$likes" },
-                isLiked: {
+                isLiked: userId ? {
                     $cond: {
-                        if: { $in: [new mongoose.Types.ObjectId(req.user?._id), "$likes.likedBy"] },
+                        if: { $in: [userId, "$likes.likedBy"] },
                         then: true,
                         else: false
                     }
-                }
+                } : false,
+                isSubscribed: userId ? {
+                    $cond: {
+                        if: { $gt: [{ $size: "$subscription" }, 0] },
+                        then: true,
+                        else: false
+                    }
+                } : false
             }
         },
         {
             $project: {
-                likes: 0 // remove raw likes array
+                likes: 0, // remove raw likes array
+                subscription: 0
             }
         }
     ]);
@@ -285,18 +213,30 @@ const getVideoById = asyncHandler(async (req, res) => {
     }
 
     // 1.5 check if video is published , if not only owner can see it
-    if (!video.isPublished && video.owner._id.toString() !== req.user?._id.toString()) {
+    if (!video.isPublished && video.owner?._id?.toString() !== req.user?._id?.toString()) {
         throw new ApiError(403, "This video is private")
     }
 
-    // 2. Add video to user's watch history if logged in
+    // 2. Add video to user's watch history if logged in atomically
     if (req.user) {
-        await User.findByIdAndUpdate(req.user._id, {
-            $pull: { watchHistory: videoId }
-        });
-        await User.findByIdAndUpdate(req.user._id, {
-            $push: { watchHistory: videoId }
-        });
+        await User.findByIdAndUpdate(req.user._id, [
+            {
+                $set: {
+                    watchHistory: {
+                        $concatArrays: [
+                            {
+                                $filter: {
+                                    input: { $ifNull: ["$watchHistory", []] },
+                                    as: "id",
+                                    cond: { $ne: ["$$id", new mongoose.Types.ObjectId(videoId)] }
+                                }
+                            },
+                            [new mongoose.Types.ObjectId(videoId)]
+                        ]
+                    }
+                }
+            }
+        ]);
     }
 
     // 3. Increment views (using findByIdAndUpdate for efficiency)
@@ -330,7 +270,7 @@ const updateVideo = asyncHandler(async (req, res) => {
 
     if (thumbnailLocalPath) {
         // Upload new thumbnail to Cloudinary
-        const newThumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+        const newThumbnail = await uploadOnCloudinary(thumbnailLocalPath, req);
         
         if (!newThumbnail.url) {
             throw new ApiError(400, "Error while uploading new thumbnail");

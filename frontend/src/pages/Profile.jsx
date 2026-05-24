@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useAuth } from "../context/AuthContext"
 import { api } from "../lib/axios"
 import { Loader2, Camera, LogOut, History, User, Lock, Video, Edit2, X } from "lucide-react"
@@ -14,7 +14,7 @@ export default function Profile() {
   const [accountMsg, setAccountMsg] = useState({ type: "", text: "" })
 
   // Password State
-  const [passwordForm, setPasswordForm] = useState({ oldPassword: "", newPassword: "" })
+  const [passwordForm, setPasswordForm] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" })
   const [updatingPassword, setUpdatingPassword] = useState(false)
   const [passwordMsg, setPasswordMsg] = useState({ type: "", text: "" })
 
@@ -27,25 +27,24 @@ export default function Profile() {
   const coverRef = useRef(null)
   const [uploadingImage, setUploadingImage] = useState(null) // 'avatar' or 'cover'
 
-  useEffect(() => {
-    if (user) {
-      setAccountForm({ fullName: user.fullName || "", email: user.email || "" })
-      fetchHistory()
-    }
-  }, [user])
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoadingHistory(true)
       const { data } = await api.get('/users/history')
-      // getWatchHistory returns { data: user[0].watchHistory } inside ApiResponse usually
       setHistory(data.data || [])
     } catch (err) {
       console.error("Failed to fetch history", err)
     } finally {
       setLoadingHistory(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      setAccountForm({ fullName: user.fullName || "", email: user.email || "" })
+      fetchHistory()
+    }
+  }, [user, fetchHistory])
 
   const handleUpdateAccount = async (e) => {
     e.preventDefault()
@@ -65,12 +64,19 @@ export default function Profile() {
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMsg({ type: "error", text: "New passwords do not match" })
+      return
+    }
     setUpdatingPassword(true)
     setPasswordMsg({ type: "", text: "" })
     try {
-      await api.post('/users/change-password', passwordForm)
+      await api.post('/users/change-password', {
+        oldPassword: passwordForm.oldPassword,
+        newPassword: passwordForm.newPassword
+      })
       setPasswordMsg({ type: "success", text: "Password changed successfully!" })
-      setPasswordForm({ oldPassword: "", newPassword: "" })
+      setPasswordForm({ oldPassword: "", newPassword: "", confirmPassword: "" })
     } catch (err) {
       setPasswordMsg({ type: "error", text: err.response?.data?.message || "Failed to change password" })
     } finally {
@@ -85,9 +91,7 @@ export default function Profile() {
     formData.append(type === 'avatar' ? 'avatar' : 'coverImage', file)
 
     try {
-      await api.patch(`/users/${type === 'avatar' ? 'avatar' : 'cover-image'}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      })
+      await api.patch(`/users/${type === 'avatar' ? 'avatar' : 'cover-image'}`, formData)
       await checkAuth() // Refresh user context
     } catch (err) {
       console.error(`Failed to update ${type}`, err)
@@ -118,7 +122,7 @@ export default function Profile() {
               {uploadingImage === 'cover' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
               Update Cover Image
             </button>
-            <input type="file" ref={coverRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0], 'cover')} />
+            <input type="file" ref={coverRef} className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'cover')} />
           </div>
         </div>
 
@@ -134,7 +138,7 @@ export default function Profile() {
             >
               {uploadingImage === 'avatar' ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
             </button>
-            <input type="file" ref={avatarRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0], 'avatar')} />
+            <input type="file" ref={avatarRef} className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'avatar')} />
           </div>
           <div className="mb-2 md:mb-4">
             <h1 className="text-2xl md:text-3xl font-bold text-primary">{user.fullName}</h1>
@@ -228,6 +232,10 @@ export default function Profile() {
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">New Password</label>
                 <input type="password" value={passwordForm.newPassword} onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Confirm New Password</label>
+                <input type="password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm({...passwordForm, confirmPassword: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none" required />
               </div>
               <button type="submit" disabled={updatingPassword} className="w-full py-2 bg-secondary hover:bg-secondary/80 text-primary rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
                 {updatingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
